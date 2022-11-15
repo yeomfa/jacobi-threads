@@ -3,17 +3,18 @@
 #include <pthread.h>
 
 // VARIABLES
-int **new_array, **old_array, delta, n, m, t;
-pthread_barrier_t br;
+int delta, n, m, t, flag = 0, print = 1;
+float **new_array, **old_array;
+pthread_barrier_t br, br_main;
 
 // FUNCTION THREAD
 void * calc ();
 
 // FUNCTION CALC VALUE
-int calc_val(int, int);
+float calc_val(int, int);
 
 // FUNCTION PRINT
-void print_array(int **);
+void print_array(float **);
 
 // FUNCTION REWRITE
 void rewrite_array();
@@ -35,10 +36,7 @@ int main(int argc, char **argv) {
   }
 
   // GET PARAMETERS
-  fscanf(file, "%d", &n);
-  fscanf(file, "%d", &m);
-  fscanf(file, "%d", &n_threads);
-  fscanf(file, "%d", &t);
+  fscanf(file, "%d %d %d %d", &n, &m, &n_threads, &t);
 
   if (n % n_threads != 0) {
     printf("rows [%d] is not divisible between threads [%d]\n", n, n_threads);
@@ -55,33 +53,46 @@ int main(int argc, char **argv) {
   // ASIGNMENT MEMORY SPACE
   handler_threads = malloc(sizeof(pthread_t) * n_threads);
 
-  old_array = malloc(sizeof(int *)*n);
+  old_array = malloc(sizeof(float *)*n);
   for (int i = 0; i < m; i++) {
-    old_array[i] = malloc(sizeof(int)*m);
+    old_array[i] = malloc(sizeof(float)*m);
   }
 
-  new_array = malloc(sizeof(int *)*n);
+  new_array = malloc(sizeof(float *)*n);
   for (int i = 0; i < m; i++) {
-    new_array[i] = malloc(sizeof(int)*m);
+    new_array[i] = malloc(sizeof(float)*m);
   }
 
   // READING ARRAY
   for (int r = 0; r < n; r++) {
     for (int c = 0; c < m; c++) {
-      fscanf(file, "%d", &old_array[r][c]);      
+      fscanf(file, "%f", &old_array[r][c]);      
     }
   }
 
-  // PRINT ARRAY
-  printf("Initial state:\n");
+  // PRINT INITIAL INTERVAL
+  printf("\n");
+  printf("Interval initial:\n");
   print_array(old_array);
 
+  pthread_barrier_init(&br, NULL, n_threads+1);
+  pthread_barrier_init(&br_main, NULL, n_threads+1);
+
   // CREATE THREADS
-  pthread_barrier_init(&br, NULL, n_threads);
   for (thread = 0; thread < n_threads; thread++) {
     idx = malloc(sizeof(int));
     *idx = thread;
     pthread_create(&handler_threads[thread], NULL, calc, idx); 
+  }
+
+  // PRINT NEW ARRAY
+  for (int i = 0; i<t; i++) {
+    pthread_barrier_wait(&br);
+    printf("\n");
+    printf("Interval [%d]:\n", i+1);
+    print_array(new_array);
+    rewrite_array();
+    pthread_barrier_wait(&br_main);
   }
 
   // WAITING THREADS
@@ -89,14 +100,11 @@ int main(int argc, char **argv) {
     pthread_join(handler_threads[thread], NULL); 
   }
 
-  rewrite_array();
-  printf("\n");
-  print_array(old_array);
-
   fclose(file);
   free(old_array);
   free(new_array);
   pthread_barrier_destroy(&br);
+  pthread_barrier_destroy(&br_main);
 
   return EXIT_SUCCESS;
 }
@@ -106,8 +114,7 @@ void * calc( void * id ) {
   int id_thread = *((int *) id);
   int to = (id_thread + 1) * delta;
   int from = to - delta;
-  int new_value;
-  printf("Thread %d working...\n", id_thread);
+  float new_value;
   for(int i=0; i<t; i++) {
     for (int row = from; row < to; row++) {
       for (int column = 0; column < m; column++) {
@@ -120,25 +127,26 @@ void * calc( void * id ) {
       }
     }
     pthread_barrier_wait(&br);
+    pthread_barrier_wait(&br_main);
   }
   free(id);
   return NULL;
 }
 
 // CALC VALUE
-int calc_val(int r, int c) {
-  int new = (old_array[r][c-1] + old_array[r-1][c] + old_array[r][c+1] + old_array[r+1][c])/4;
+float calc_val(int r, int c) {
+  float new = (old_array[r][c-1] + old_array[r-1][c] + old_array[r][c+1] + old_array[r+1][c])/4;
   return new;
 }
 
 // PRINT ARRAY
-void print_array(int **array) {
+void print_array(float **array) {
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < m; j++) {
       if(array[i][j] < array[0][0]){
-        printf("%d  ", array[i][j]);
+        printf("%.2f  ", array[i][j]);
       } else {
-        printf("%d ", array[i][j]);
+        printf("%.2f ", array[i][j]);
       }
     }
     printf("\n");
