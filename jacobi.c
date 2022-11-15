@@ -15,7 +15,7 @@
 // GLOBAL VARIABLES
 int delta, n, m, t;
 float **new_array, **old_array;
-pthread_barrier_t br_thread, br_main;
+pthread_barrier_t br_thread;
 
 // FUNCTION THREAD
 void * thread_calc();
@@ -87,7 +87,6 @@ int main(int argc, char **argv) {
   print_array(old_array);
 
   pthread_barrier_init(&br_thread, NULL, n_threads+1);
-  pthread_barrier_init(&br_main, NULL, n_threads+1);
 
   // CREATE THREADS
   for (thread = 0; thread < n_threads; thread++) {
@@ -98,14 +97,13 @@ int main(int argc, char **argv) {
 
   // PRINT NEW ARRAY
   for (int i = 0; i<t; i++) {
-    printf("Calculating interval [%d]\n", i + 1);
-    pthread_barrier_wait(&br_main);
-    pthread_barrier_wait(&br_thread);
+    printf("\n --  Calculating interval [%d]  -- \n\n", i + 1);
+    pthread_barrier_wait(&br_thread); // STARTING THREAD
+    pthread_barrier_wait(&br_thread); // WAITING THREAD
     printf("\n");
     printf("Result:\n");
     print_array(new_array);
     rewrite_array();
-    pthread_barrier_wait(&br_main);
   }
 
   // WAITING THREADS
@@ -117,7 +115,6 @@ int main(int argc, char **argv) {
   free(old_array);
   free(new_array);
   pthread_barrier_destroy(&br_thread);
-  pthread_barrier_destroy(&br_main);
 
   return EXIT_SUCCESS;
 }
@@ -129,7 +126,7 @@ void * thread_calc( void * id ) {
   int from = to - delta;
   float new_value;
   for(int i=0; i<t; i++) {
-    pthread_barrier_wait(&br_main);
+    pthread_barrier_wait(&br_thread); // WAITING MAIN THREAD
     printf("-> thread %d\n", id_thread+1);
     for (int row = from; row < to; row++) {
       for (int column = 0; column < m; column++) {
@@ -141,8 +138,7 @@ void * thread_calc( void * id ) {
         new_array[row][column] = new_value;
       }
     }
-    pthread_barrier_wait(&br_thread);
-    pthread_barrier_wait(&br_main);
+    pthread_barrier_wait(&br_thread); // STARTING MAIN THREAD
   }
   free(id);
   return NULL;
