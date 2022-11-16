@@ -13,21 +13,24 @@
 #include <pthread.h>
 
 // GLOBAL VARIABLES
-int delta, n, m, t;
+int delta, n, m, t_interval;
 float **new_array, **old_array;
 pthread_barrier_t br_thread;
 
 // FUNCTION THREAD
 void * thread_calc();
 
-// FUNCTION CALC VALUE
-float calc_val(int, int);
+// FUNCTION CALC VALUES
+void calc_values(int, int);
 
 // FUNCTION PRINT
 void print_array(float **);
 
 // FUNCTION REWRITE
 void rewrite_array();
+
+// FUNCTION ERROR HANDLING
+void error_handling(int);
 
 // FUNCTION MAIN
 int main(int argc, char **argv) {
@@ -47,19 +50,16 @@ int main(int argc, char **argv) {
   }
 
   // GET PARAMETERS
-  fscanf(file, "%d %d %d %d", &n, &m, &n_threads, &t);
+  fscanf(file, "%d %d %d %d", &n, &m, &n_threads, &t_interval);
 
-  if (n % n_threads != 0) {
-    printf("rows [%d] is not divisible between threads [%d]\n", n, n_threads);
-    exit(EXIT_FAILURE);
-  }
+  error_handling(n_threads);
 
   delta = n / n_threads;
 
   printf("Value rows is: %d\n", n);
   printf("Value columns is: %d\n", m);
   printf("Value number threads is: %d\n", n_threads);
-  printf("Value interval is: %d\n", t);
+  printf("Value interval is: %d\n", t_interval);
   
   // ASIGNMENT MEMORY SPACE
   handler_threads = malloc(sizeof(pthread_t) * n_threads);
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
 
   // PRINT INITIAL INTERVAL
   printf("\n");
-  printf("Interval initial:\n");
+  printf(" --  Interval initial  -- \n\n");
   print_array(old_array);
 
   pthread_barrier_init(&br_thread, NULL, n_threads+1);
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   }
 
   // PRINT NEW ARRAY
-  for (int i = 0; i<t; i++) {
+  for (int i = 0; i<t_interval; i++) {
     printf("\n --  Calculating interval [%d]  -- \n\n", i + 1);
     pthread_barrier_wait(&br_thread); // STARTING THREAD
     pthread_barrier_wait(&br_thread); // WAITING THREAD
@@ -121,33 +121,33 @@ int main(int argc, char **argv) {
 
 // FUNCTION THREAD CALC
 void * thread_calc( void * id ) {
-  int id_thread = *((int *) id);
-  int to = (id_thread + 1) * delta;
-  int from = to - delta;
+  int id_thread = *((int *) id), from, to;
+  to = (id_thread + 1) * delta;
+  from = to - delta;
   float new_value;
-  for(int i=0; i<t; i++) {
+  for(int i=0; i<t_interval; i++) {
     pthread_barrier_wait(&br_thread); // WAITING MAIN THREAD
     printf("-> thread %d\n", id_thread+1);
-    for (int row = from; row < to; row++) {
-      for (int column = 0; column < m; column++) {
-        if (row == 0 || column == 0 || row == n-1 || column == m-1) {
-          new_value = old_array[row][column];
-        } else {
-          new_value = calc_val(row, column);
-        }
-        new_array[row][column] = new_value;
-      }
-    }
+    calc_values(from, to);
     pthread_barrier_wait(&br_thread); // STARTING MAIN THREAD
   }
   free(id);
   return NULL;
 }
 
-// CALC VALUE
-float calc_val(int r, int c) {
-  float new = (old_array[r][c-1] + old_array[r-1][c] + old_array[r][c+1] + old_array[r+1][c])/4;
-  return new;
+// CALC VALUES
+void calc_values(int from, int to) {
+  float new_value;
+  for (int row = from; row < to; row++) {
+    for (int column = 0; column < m; column++) {
+      if (row == 0 || column == 0 || row == n-1 || column == m-1) {
+        new_value = old_array[row][column];
+      } else {
+        new_value = (old_array[row][column-1] + old_array[row-1][column] + old_array[row][column+1] + old_array[row+1][column])/4;
+      }
+      new_array[row][column] = new_value;
+    }
+  }
 }
 
 // PRINT ARRAY
@@ -171,5 +171,25 @@ void rewrite_array() {
     for (int c = 0; c < m; c++) {
       old_array[r][c] = new_array[r][c];
     }
+  }
+}
+
+// ERROR HANDLING
+void error_handling(int n_threads) {
+  if (n == 0 || m == 0) {
+    printf("Row = %d, Columns = %d. Both rows and columns must be greater than 0\n", n, m);
+    exit(EXIT_FAILURE);
+  }
+  if (n_threads == 0) {
+    printf("Number threads = 0, need at least 1 thread to calculate interval(s)\n");
+    exit(EXIT_FAILURE);
+  }
+  if (n % n_threads != 0) {
+    printf("Rows [%d] is not divisible between threads [%d]\n", n, n_threads);
+    exit(EXIT_FAILURE);
+  }
+  if (t_interval == 0) {
+    printf("Interval(s) = 0, need at least 1 interval\n");
+    exit(EXIT_FAILURE);
   }
 }
